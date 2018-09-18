@@ -8,10 +8,23 @@
 #include "std_msgs/Bool.h"
 #include "sensor_msgs/Range.h"
 #include "geometry_msgs/Vector3.h"
-
-#include "robots/rosbot/ROSbot.h"
+#include "ROSbot.h"
 
 using namespace hFramework;
+
+// Uncomment one of these lines, accordingly to range sensor type of your rosbot
+// If you have version with infared sensor:
+// static const SensorType sensor_type = SENSOR_INFRARED;
+// If you have version with laser sensor:
+static const SensorType sensor_type = SENSOR_LASER;
+// If you want to use your own sensor:
+// static const SensorType sensor_type = NO_DISTANCE_SENSOR;
+
+// Uncomment one of these lines, accordingly to IMU sensor type of your device
+// If you have version with MPU9250:
+static const ImuType imu_type = MPU9250;
+// If you want to use your own sensor:
+// static const ImuType imu_type = NO_IMU;
 
 ros::NodeHandle nh;
 sensor_msgs::BatteryState battery;
@@ -69,27 +82,62 @@ void initDistanceSensorsPublisher()
 	range_rl.header.frame_id = "range_rl";
 	range_rr.header.frame_id = "range_rr";
 
-	range_fl.field_of_view = 0.26;
-	range_fl.min_range = 0.03;
-	range_fl.max_range = 0.90;
-	range_fr.field_of_view = 0.26;
-	range_fr.min_range = 0.03;
-	range_fr.max_range = 0.90;
-	range_rl.field_of_view = 0.26;
-	range_rl.min_range = 0.03;
-	range_rl.max_range = 0.90;
-	range_rr.field_of_view = 0.26;
-	range_rr.min_range = 0.03;
-	range_rr.max_range = 0.90;
+	switch (sensor_type)
+	{
+	case SENSOR_LASER:
+		range_fl.field_of_view = 0.26;
+		range_fl.min_range = 0.03;
+		range_fl.max_range = 0.90;
 
-	range_pub_fl = new ros::Publisher("/range/fl", &range_fl);
-	range_pub_fr = new ros::Publisher("/range/fr", &range_fr);
-	range_pub_rl = new ros::Publisher("/range/rl", &range_rl);
-	range_pub_rr = new ros::Publisher("/range/rr", &range_rr);
-	nh.advertise(*range_pub_fl);
-	nh.advertise(*range_pub_fr);
-	nh.advertise(*range_pub_rl);
-	nh.advertise(*range_pub_rr);
+		range_fr.field_of_view = 0.26;
+		range_fr.min_range = 0.03;
+		range_fr.max_range = 0.90;
+
+		range_rl.field_of_view = 0.26;
+		range_rl.min_range = 0.03;
+		range_rl.max_range = 0.90;
+
+		range_rr.field_of_view = 0.26;
+		range_rr.min_range = 0.03;
+		range_rr.max_range = 0.90;
+		break;
+	case SENSOR_INFRARED:
+		range_fl.radiation_type = sensor_msgs::Range::INFRARED;
+		range_fl.field_of_view = 0.26;
+		range_fl.min_range = 0.05;
+		range_fl.max_range = 0.299;
+
+		range_fr.radiation_type = sensor_msgs::Range::INFRARED;
+		range_fr.field_of_view = 0.26;
+		range_fr.min_range = 0.05;
+		range_fr.max_range = 0.299;
+
+		range_rl.radiation_type = sensor_msgs::Range::INFRARED;
+		range_rl.field_of_view = 0.26;
+		range_rl.min_range = 0.05;
+		range_rl.max_range = 0.299;
+
+		range_rr.radiation_type = sensor_msgs::Range::INFRARED;
+		range_rr.field_of_view = 0.26;
+		range_rr.min_range = 0.05;
+		range_rr.max_range = 0.299;
+		break;
+	case NO_DISTANCE_SENSOR:
+		// Do your own implementation
+		break;
+	}
+
+	if (sensor_type != SensorType::NO_DISTANCE_SENSOR)
+	{
+		range_pub_fl = new ros::Publisher("/range/fl", &range_fl);
+		range_pub_fr = new ros::Publisher("/range/fr", &range_fr);
+		range_pub_rl = new ros::Publisher("/range/rl", &range_rl);
+		range_pub_rr = new ros::Publisher("/range/rr", &range_rr);
+		nh.advertise(*range_pub_fl);
+		nh.advertise(*range_pub_fr);
+		nh.advertise(*range_pub_rl);
+		nh.advertise(*range_pub_rr);
+	}
 }
 
 void initBatteryPublisher()
@@ -100,7 +148,7 @@ void initBatteryPublisher()
 
 void initPosePublisher()
 {
-	pose.header.frame_id = "base_link";
+	pose.header.frame_id = "odom";
 	pose.pose.orientation = tf::createQuaternionFromYaw(0);
 	pose_pub = new ros::Publisher("/pose", &pose);
 	nh.advertise(*pose_pub);
@@ -108,17 +156,24 @@ void initPosePublisher()
 
 void initIMUPublisher()
 {
-	imu_pub = new ros::Publisher("/rpy", &imuArray);
-	nh.advertise(*imu_pub);
+	switch (imu_type)
+	{
+	case MPU9250:
+		imu_pub = new ros::Publisher("/rpy", &imuArray);
+		nh.advertise(*imu_pub);
+		break;
+	case NO_IMU:
+		break;
+	}
 }
 
 void hMain()
 {
-	Serial.printf("init ROSbot\n");
+	uint32_t t = sys.getRefTime();
 	rosbot.initROSbot();
-	Serial.printf("init with dvice\n");
 	platform.begin(&RPi);
 	nh.getHardware()->initWithDevice(&platform.LocalSerial);
+	// nh.getHardware()->initWithDevice(&RPi);
 	nh.initNode();
 
 	initBatteryPublisher();
@@ -134,40 +189,39 @@ void hMain()
 		publish_counter++;
 		if (publish_counter > 10)
 		{
-			// get ROSbot pose
 			rosbot_pose = rosbot.getPose();
 			pose.pose.position.x = rosbot_pose[0];
 			pose.pose.position.y = rosbot_pose[1];
 			pose.pose.orientation = tf::createQuaternionFromYaw(rosbot_pose[2]);
-			// publish pose
 			pose_pub->publish(&pose);
 
-			// get ranges from distance sensors
-			ranges = rosbot.getRanges();
-			range_fl.range = ranges[0];
-			range_fr.range = ranges[1];
-			range_rl.range = ranges[2];
-			range_rr.range = ranges[3];
-			// publish ranges
-			range_pub_fl->publish(&range_fl);
-			range_pub_fr->publish(&range_fr);
-			range_pub_rl->publish(&range_rl);
-			range_pub_rr->publish(&range_rr);
+			if (sensor_type != SensorType::NO_DISTANCE_SENSOR)
+			{
+				ranges = rosbot.getRanges(sensor_type);
+				range_fl.range = ranges[0];
+				range_fr.range = ranges[1];
+				range_rl.range = ranges[2];
+				range_rr.range = ranges[3];
+				range_pub_fl->publish(&range_fl);
+				range_pub_fr->publish(&range_fr);
+				range_pub_rl->publish(&range_rl);
+				range_pub_rr->publish(&range_rr);
+			}
 
-			// get roll, pitch and yaw angles from IMU
-			rpy = rosbot.getRPY();
-			imuArray.x = rpy[0];
-			imuArray.y = rpy[1];
-			imuArray.z = rpy[2];
-			// publish RPY
-			imu_pub->publish(&imuArray);
+			if (imu_type != ImuType::NO_IMU)
+			{
+				rpy = rosbot.getRPY();
+				imuArray.x = rpy[0];
+				imuArray.y = rpy[1];
+				imuArray.z = rpy[2];
+				imu_pub->publish(&imuArray);
+			}
 
-			// get battery voltage
 			battery.voltage = rosbot.getBatteryLevel();
-			// publish battery voltage
 			battery_pub->publish(&battery);
 			publish_counter = 0;
+			LED2.toggle();
 		}
-		sys.delay(10);
+		sys.delaySync(t, 10);
 	}
 }
