@@ -194,7 +194,7 @@ void hMain()
 	initResetOdomSubscriber();
 	initJointStatePublisher();
 
-	joint_states.header.frame_id = "odom";
+	joint_states.header.frame_id = "base_link";
 
 	//creating the arrays for the message
 	char *name[] = {"front_left_wheel_hinge", "front_right_wheel_hinge", "rear_left_wheel_hinge", "rear_right_wheel_hinge"};
