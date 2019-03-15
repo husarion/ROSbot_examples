@@ -7,6 +7,7 @@
 #include "sensor_msgs/BatteryState.h"
 #include "std_msgs/Bool.h"
 #include "sensor_msgs/Range.h"
+#include "sensor_msgs/JointState.h"
 #include "geometry_msgs/Vector3.h"
 #include "ROSbot.h"
 
@@ -29,6 +30,8 @@ static const ImuType imu_type = MPU9250;
 ros::NodeHandle nh;
 sensor_msgs::BatteryState battery;
 ros::Publisher *battery_pub;
+sensor_msgs::JointState joint_states;
+ros::Publisher *joint_state_pub;
 geometry_msgs::PoseStamped pose;
 ros::Publisher *pose_pub;
 geometry_msgs::Vector3 imuArray;
@@ -47,6 +50,7 @@ ros::Publisher *range_pub_rr;
 std::vector<float> rosbot_pose;
 std::vector<float> rpy;
 std::vector<float> ranges;
+wheelsState ws;
 
 int publish_counter = 0;
 
@@ -167,6 +171,12 @@ void initIMUPublisher()
 	}
 }
 
+void initJointStatePublisher()
+{
+	joint_state_pub = new ros::Publisher("/joint_states", &joint_states);
+	nh.advertise(*joint_state_pub);
+}
+
 void hMain()
 {
 	uint32_t t = sys.getRefTime();
@@ -182,6 +192,27 @@ void hMain()
 	initDistanceSensorsPublisher();
 	initCmdVelSubscriber();
 	initResetOdomSubscriber();
+	initJointStatePublisher();
+
+	joint_states.header.frame_id = "base_link";
+
+	//creating the arrays for the message
+	char *name[] = {"front_left_wheel_hinge", "front_right_wheel_hinge", "rear_left_wheel_hinge", "rear_right_wheel_hinge"};
+	float pos[] = {0, 0, 0, 0};
+	float vel[] = {0, 0, 0, 0};
+	float eff[] = {0, 0, 0, 0};
+
+	//assigning the arrays to the message
+	joint_states.name = name;
+	joint_states.position = pos;
+	joint_states.velocity = vel;
+	joint_states.effort = eff;
+
+	//setting the length
+	joint_states.name_length = 4;
+	joint_states.position_length = 4;
+	joint_states.velocity_length = 4;
+	joint_states.effort_length = 4;
 
 	while (true)
 	{
@@ -223,6 +254,16 @@ void hMain()
 				// publish RPY
 				imu_pub->publish(&imuArray);
 			}
+
+			ws = rosbot.getWheelsState();
+			pos[0] = ws.FL;
+			pos[1] = ws.FR;
+			pos[2] = ws.RL;
+			pos[3] = ws.RR;
+			joint_states.position = pos;
+			joint_states.header.stamp = nh.now();
+			joint_state_pub->publish(&joint_states);
+
 			// get battery voltage
 			battery.voltage = rosbot.getBatteryLevel();
 			// publish battery voltage
