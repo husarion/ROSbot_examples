@@ -2,8 +2,10 @@
 #include "hCloudClient.h"
 #include "ros.h"
 #include "tf/tf.h"
+#include "tf/transform_broadcaster.h"
 #include "geometry_msgs/Twist.h"
 #include "geometry_msgs/PoseStamped.h"
+#include "geometry_msgs/TransformStamped.h"
 #include "sensor_msgs/BatteryState.h"
 #include "std_msgs/Bool.h"
 #include "sensor_msgs/Range.h"
@@ -51,6 +53,9 @@ std::vector<float> rosbot_pose;
 std::vector<float> rpy;
 std::vector<float> ranges;
 wheelsState ws;
+
+geometry_msgs::TransformStamped robot_tf;
+tf::TransformBroadcaster broadcaster;
 
 int publish_counter = 0;
 
@@ -177,6 +182,20 @@ void initJointStatePublisher()
 	nh.advertise(*joint_state_pub);
 }
 
+void initTfPublisher()
+{
+	robot_tf.header.frame_id = "odom";
+	robot_tf.child_frame_id = "base_link";
+	robot_tf.transform.translation.x = 0.0;
+	robot_tf.transform.translation.y = 0.0;
+	robot_tf.transform.translation.z = 0.0;
+	robot_tf.transform.rotation.x = 0.0;
+	robot_tf.transform.rotation.y = 0.0;
+	robot_tf.transform.rotation.z = 0.0;
+	robot_tf.transform.rotation.w = 1.0;
+	broadcaster.init(nh);
+}
+
 void hMain()
 {
 	uint32_t t = sys.getRefTime();
@@ -193,6 +212,7 @@ void hMain()
 	initCmdVelSubscriber();
 	initResetOdomSubscriber();
 	initJointStatePublisher();
+	initTfPublisher();
 
 	joint_states.header.frame_id = "base_link";
 
@@ -227,6 +247,17 @@ void hMain()
 			pose.pose.orientation = tf::createQuaternionFromYaw(rosbot_pose[2]);
 			// publish pose
 			pose_pub->publish(&pose);
+
+			// get ROSbot tf
+			robot_tf.header.stamp = nh.now();
+			robot_tf.transform.translation.x = pose.pose.position.x;
+			robot_tf.transform.translation.y = pose.pose.position.y;
+			robot_tf.transform.rotation.x = pose.pose.orientation.x;
+			robot_tf.transform.rotation.y = pose.pose.orientation.y;
+			robot_tf.transform.rotation.z = pose.pose.orientation.z;
+			robot_tf.transform.rotation.w = pose.pose.orientation.w;
+			// publish tf
+			broadcaster.sendTransform(robot_tf);
 
 			if (sensor_type != SensorType::NO_DISTANCE_SENSOR)
 			{
