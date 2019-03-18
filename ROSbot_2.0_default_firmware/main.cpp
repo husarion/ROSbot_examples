@@ -152,7 +152,7 @@ void initBatteryPublisher()
 
 void initPosePublisher()
 {
-	pose.header.frame_id = "base_link";
+	pose.header.frame_id = "odom";
 	pose.pose.orientation = tf::createQuaternionFromYaw(0);
 	pose_pub = new ros::Publisher("/pose", &pose);
 	nh.advertise(*pose_pub);
