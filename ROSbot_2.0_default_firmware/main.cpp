@@ -29,6 +29,10 @@ static const ImuType imu_type = MPU9250;
 // If you want to use your own sensor:
 // static const ImuType imu_type = NO_IMU;
 
+// Uncomment one of these lines, accordingly version of your device
+uint32_t baudrate = 500000; // for ROSbot 2.0
+// uint32_t baudrate = 230400; // for ROSbot 2.0 PRO 
+
 ros::NodeHandle nh;
 sensor_msgs::BatteryState battery;
 ros::Publisher *battery_pub;
@@ -200,6 +204,7 @@ void hMain()
 {
 	uint32_t t = sys.getRefTime();
 	rosbot.initROSbot(sensor_type, imu_type);
+	RPi.init(baudrate);
 	platform.begin(&RPi);
 	nh.getHardware()->initWithDevice(&platform.LocalSerial);
 	// nh.getHardware()->initWithDevice(&RPi);
